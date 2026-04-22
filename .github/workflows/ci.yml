@@ -15,13 +15,21 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - name: Get changed services
         id: set-matrix
         run: |
           echo "Detecting changed services..."
 
-          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          # Handle initial commit edge case (no parent)
+          if git rev-parse HEAD^ >/dev/null 2>&1; then
+            CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
+          else
+            # First commit: treat all tracked files as changed
+            CHANGED_FILES=$(git ls-tree --name-only -r HEAD)
+          fi
 
           SERVICES=$(echo "$CHANGED_FILES" | grep '^services/' | cut -d/ -f2 | sort -u)
 

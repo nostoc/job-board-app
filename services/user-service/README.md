@@ -1,4 +1,4 @@
-# go-multi-tenant-auth
+# User Service
 
 A multi-tenant gRPC authentication and authorization service built with Go and [Zitadel](https://zitadel.com). Each tenant maps to a dedicated Zitadel organization, providing strong isolation of identities, roles, and data at the auth layer.
 
@@ -72,7 +72,7 @@ The server chains two gRPC interceptors on every request. The tenant interceptor
 
 ## How multi-tenancy works
 
-This service uses the **one Zitadel organization per tenant** model.
+This service uses **one Zitadel organization per tenant**.
 
 Each tenant (`acme-corp`, `globex`, etc.) is provisioned as a separate organization in your Zitadel instance. Users, roles, and applications are scoped to their organization. When a request arrives:
 

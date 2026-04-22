@@ -1,0 +1,22 @@
+# Dependency directories
+node_modules/
+
+# Environment variables (NEVER COMMIT SECRETS)
+.env
+.env.local
+.env.test
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Mac OS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Coverage directories
+coverage/

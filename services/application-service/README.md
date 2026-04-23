@@ -32,14 +32,14 @@ CREATE USER app_admin WITH PASSWORD 'app_password';
 CREATE DATABASE applications_db OWNER app_admin;
 ```
 
-2. Enable `pgcrypto` (required by `gen_random_uuid()` used in table creation):
+2. Enable `pgcrypto` (required by `gen_random_uuid()` default used by TypeORM entity IDs):
 
 ```sql
 \c applications_db
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 ```
 
-On startup, the service auto-creates the `applications` table if it does not exist.
+On startup, the service initializes a TypeORM `DataSource` and automatically syncs the `applications` table schema in non-production environments (`NODE_ENV != production`).
 
 ## Run Locally
 1. Start dependencies first:
@@ -95,4 +95,4 @@ Possible outcomes:
 You can repeat step 5 multiple times to observe both success and rollback scenarios because payment success is randomized.
 
 ## Tech Stack
-Node.js, Express, Axios, PostgreSQL (`applications_db`), Docker
+Node.js, Express, Axios, TypeORM, PostgreSQL (`applications_db`), Docker

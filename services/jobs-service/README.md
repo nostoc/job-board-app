@@ -27,14 +27,14 @@ CREATE USER jobs_admin WITH PASSWORD 'jobs_password';
 CREATE DATABASE jobs_db OWNER jobs_admin;
 ```
 
-2. Enable `pgcrypto` (required by `gen_random_uuid()` used in table creation):
+2. Enable `pgcrypto` (required by `gen_random_uuid()` default used by TypeORM entity IDs):
 
 ```sql
 \c jobs_db
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 ```
 
-On startup, the service auto-creates the `jobs` table if it does not exist.
+On startup, the service initializes a TypeORM `DataSource` and automatically syncs the `jobs` table schema in non-production environments (`NODE_ENV != production`).
 
 ## Run Locally
 ```bash
@@ -91,4 +91,4 @@ curl -X DELETE http://localhost:3002/api/v1/jobs/<job_id>
 ```
 
 ## Tech Stack
-Node.js, Express, PostgreSQL (`jobs_db`), Docker
+Node.js, Express, TypeORM, PostgreSQL (`jobs_db`), Docker

@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool, initDB } = require('./db');
+const { initDB, getJobRepository } = require('./db');
 require('dotenv').config();
 
 const app = express();
@@ -9,12 +9,17 @@ app.use(express.json());
 app.post('/api/v1/jobs', async (req, res) => {
     const { employer_id, title, description, salary_min, salary_max } = req.body;
     try {
-        const result = await pool.query(
-            `INSERT INTO jobs (employer_id, title, description, salary_min, salary_max, status) 
-             VALUES ($1, $2, $3, $4, $5, 'DRAFT') RETURNING *`,
-            [employer_id, title, description, salary_min, salary_max]
-        );
-        res.status(201).json(result.rows[0]);
+        const jobRepository = getJobRepository();
+        const job = jobRepository.create({
+            employer_id,
+            title,
+            description,
+            salary_min,
+            salary_max,
+            status: 'DRAFT'
+        });
+        const savedJob = await jobRepository.save(job);
+        res.status(201).json(savedJob);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -23,12 +28,13 @@ app.post('/api/v1/jobs', async (req, res) => {
 // 2. Publish Job
 app.put('/api/v1/jobs/:id/publish', async (req, res) => {
     try {
-        const result = await pool.query(
-            `UPDATE jobs SET status = 'PUBLISHED' WHERE id = $1 RETURNING *`,
-            [req.params.id]
-        );
-        if (result.rowCount === 0) return res.status(404).json({ error: "Job not found" });
-        res.status(200).json(result.rows[0]);
+        const jobRepository = getJobRepository();
+        const existingJob = await jobRepository.findOneBy({ id: req.params.id });
+        if (!existingJob) return res.status(404).json({ error: "Job not found" });
+
+        existingJob.status = 'PUBLISHED';
+        const updatedJob = await jobRepository.save(existingJob);
+        res.status(200).json(updatedJob);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -37,7 +43,8 @@ app.put('/api/v1/jobs/:id/publish', async (req, res) => {
 // 3. Delete Job (Saga Rollback)
 app.delete('/api/v1/jobs/:id', async (req, res) => {
     try {
-        await pool.query(`DELETE FROM jobs WHERE id = $1`, [req.params.id]);
+        const jobRepository = getJobRepository();
+        await jobRepository.delete({ id: req.params.id });
         res.status(204).send();
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -54,4 +61,7 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3002;
 initDB().then(() => {
     app.listen(PORT, () => console.log(`Jobs Service running on port ${PORT}`));
+}).catch((error) => {
+    console.error('Failed to initialize jobs-service database:', error.message);
+    process.exit(1);
 });

@@ -1,5 +1,5 @@
 const express = require('express');
-const { pool, initDB } = require('./db');
+const { initDB, getPaymentRepository } = require('./db');
 require('dotenv').config();
 
 const app = express();
@@ -13,16 +13,19 @@ app.post('/api/v1/payments/charge', async (req, res) => {
     const status = isSuccess ? 'SUCCESS' : 'FAILED';
 
     try {
-        const result = await pool.query(
-            `INSERT INTO payments (employer_id, job_id, amount, status) 
-             VALUES ($1, $2, $3, $4) RETURNING *`,
-            [employer_id, job_id, amount, status]
-        );
+        const paymentRepository = getPaymentRepository();
+        const payment = paymentRepository.create({
+            employer_id,
+            job_id,
+            amount,
+            status
+        });
+        const savedPayment = await paymentRepository.save(payment);
 
         if (isSuccess) {
-            res.status(200).json(result.rows[0]);
+            res.status(200).json(savedPayment);
         } else {
-            res.status(402).json({ error: "Insufficient funds", details: result.rows[0] });
+            res.status(402).json({ error: "Insufficient funds", details: savedPayment });
         }
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -37,4 +40,7 @@ app.get('/health', (req, res) => {
 const PORT = process.env.PORT || 3004;
 initDB().then(() => {
     app.listen(PORT, () => console.log(`Payment Service running on port ${PORT}`));
+}).catch((error) => {
+    console.error('Failed to initialize payment-service database:', error.message);
+    process.exit(1);
 });

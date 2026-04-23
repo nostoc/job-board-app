@@ -11,12 +11,21 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       services: ${{ steps.set-matrix.outputs.services }}
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
+
+      - name: Generate version tag
+        id: version
+        run: |
+          # CalVer format: YYYY.MM.DD.RUN_NUMBER
+          VERSION=$(date -u +%Y.%m.%d).${{ github.run_number }}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Generated version: $VERSION"
 
       - name: Get changed services
         id: set-matrix
@@ -67,19 +76,33 @@ jobs:
         run: |
           SERVICE=${{ matrix.service }}
           IMAGE=${{ secrets.DOCKER_USERNAME }}/${SERVICE}
+          VERSION=${{ needs.detect-changes.outputs.version }}
+          SHORT_SHA=${{ github.sha }}
+          SHORT_SHA=${SHORT_SHA:0:7}
 
           echo "Building $SERVICE..."
+          echo "Version tag: $VERSION"
+          echo "Commit SHA: $SHORT_SHA"
 
           docker build \
-            -t $IMAGE:${{ github.sha }} \
+            -t $IMAGE:$VERSION \
+            -t $IMAGE:$SHORT_SHA \
             -t $IMAGE:latest \
+            --label "version=$VERSION" \
+            --label "commit=${{ github.sha }}" \
+            --label "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             ./services/$SERVICE
 
           echo "Pushing $SERVICE..."
-
-          docker push $IMAGE:${{ github.sha }}
+          docker push $IMAGE:$VERSION
+          docker push $IMAGE:$SHORT_SHA
           docker push $IMAGE:latest
 
       - name: Output image info
         run: |
-          echo "Built image: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:${{ github.sha }}"
+          VERSION=${{ needs.detect-changes.outputs.version }}
+          SHORT_SHA=${{ github.sha }}
+          SHORT_SHA=${SHORT_SHA:0:7}
+          echo "✅ Built image: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:$VERSION"
+          echo "   Also tagged: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:$SHORT_SHA"
+          echo "   Latest tag: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.service }}:latest"

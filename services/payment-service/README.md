@@ -27,14 +27,14 @@ CREATE USER payment_admin WITH PASSWORD 'payment_password';
 CREATE DATABASE payments_db OWNER payment_admin;
 ```
 
-2. Enable `pgcrypto` (required by `gen_random_uuid()` used in table creation):
+2. Enable `pgcrypto` (required by `gen_random_uuid()` default used by TypeORM entity IDs):
 
 ```sql
 \c payments_db
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 ```
 
-On startup, the service auto-creates the `payments` table if it does not exist.
+On startup, the service initializes a TypeORM `DataSource` and automatically syncs the `payments` table schema in non-production environments (`NODE_ENV != production`).
 
 ## Run Locally
 ```bash
@@ -73,4 +73,4 @@ Possible responses:
 - `500 Internal Server Error` for unexpected failures
 
 ## Tech Stack
-Node.js, Express, PostgreSQL (`payments_db`), Docker
+Node.js, Express, TypeORM, PostgreSQL (`payments_db`), Docker

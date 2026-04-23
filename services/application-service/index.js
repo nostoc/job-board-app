@@ -1,6 +1,6 @@
 const express = require('express');
 const axios = require('axios');
-const { pool, initDB } = require('./db');
+const { initDB, getApplicationRepository } = require('./db');
 require('dotenv').config();
 
 const app = express();
@@ -16,14 +16,18 @@ app.post('/api/v1/application/post-job', async (req, res) => {
     let sagaId = null;
 
     try {
+        const applicationRepository = getApplicationRepository();
+
         // STEP 0: Initialize Saga State in Database
         console.log("Saga Step 0: Initializing Saga in Database...");
-        const sagaResult = await pool.query(
-            `INSERT INTO applications (candidate_id, status, saga_state) 
-             VALUES ($1, 'POSTING_JOB', 'STARTED') RETURNING id`,
-            [employer_id]
+        const saga = await applicationRepository.save(
+            applicationRepository.create({
+                candidate_id: employer_id,
+                status: 'POSTING_JOB',
+                saga_state: 'STARTED'
+            })
         );
-        sagaId = sagaResult.rows[0].id;
+        sagaId = saga.id;
 
         // STEP 1: Create Draft Job
         console.log(`Saga Step 1: Creating Draft Job (Saga Tracking ID: ${sagaId})...`);
@@ -34,9 +38,9 @@ app.post('/api/v1/application/post-job', async (req, res) => {
         createdJobId = jobResponse.data.id;
 
         // Update Saga State: Draft Success
-        await pool.query(
-            `UPDATE applications SET job_id = $1, saga_state = 'DRAFT_CREATED' WHERE id = $2`,
-            [createdJobId, sagaId]
+        await applicationRepository.update(
+            { id: sagaId },
+            { job_id: createdJobId, saga_state: 'DRAFT_CREATED' }
         );
 
         // STEP 2: Process Payment
@@ -52,9 +56,9 @@ app.post('/api/v1/application/post-job', async (req, res) => {
         await axios.put(`${JOBS_SERVICE_URL}/api/v1/jobs/${createdJobId}/publish`);
 
         // Update Saga State: Completed
-        await pool.query(
-            `UPDATE applications SET saga_state = 'COMPLETED', status = 'PUBLISHED' WHERE id = $1`,
-            [sagaId]
+        await applicationRepository.update(
+            { id: sagaId },
+            { saga_state: 'COMPLETED', status: 'PUBLISHED' }
         );
 
         // TODO in Phase 4: Publish RabbitMQ Event here (Notification Service)
@@ -78,9 +82,9 @@ app.post('/api/v1/application/post-job', async (req, res) => {
 
                 // Rollback Step 2: Update Saga State to reflect the successful rollback
                 if (sagaId) {
-                    await pool.query(
-                        `UPDATE applications SET saga_state = 'ROLLED_BACK', status = 'FAILED' WHERE id = $1`,
-                        [sagaId]
+                    await applicationRepository.update(
+                        { id: sagaId },
+                        { saga_state: 'ROLLED_BACK', status: 'FAILED' }
                     );
                 }
 
@@ -99,7 +103,8 @@ app.post('/api/v1/application/post-job', async (req, res) => {
 
         // Catch-all for other unexpected errors (e.g., Jobs service is completely down)
         if (sagaId) {
-            await pool.query(`UPDATE applications SET saga_state = 'SYSTEM_ERROR' WHERE id = $1`, [sagaId]);
+            const applicationRepository = getApplicationRepository();
+            await applicationRepository.update({ id: sagaId }, { saga_state: 'SYSTEM_ERROR' });
         }
 
         return res.status(500).json({
@@ -114,4 +119,7 @@ initDB().then(() => {
     app.listen(PORT, () => {
         console.log(`Application Service (Saga Orchestrator) running on port ${PORT}`);
     });
+}).catch((error) => {
+    console.error('Failed to initialize application-service database:', error.message);
+    process.exit(1);
 });

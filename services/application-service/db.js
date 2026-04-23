@@ -1,21 +1,21 @@
-const { Pool } = require('pg');
+require('reflect-metadata');
+const { DataSource } = require('typeorm');
 require('dotenv').config();
+const { ApplicationEntity } = require('./entities/application.entity');
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const appDataSource = new DataSource({
+    type: 'postgres',
+    url: process.env.DATABASE_URL,
+    entities: [ApplicationEntity],
+    synchronize: process.env.NODE_ENV !== 'production',
+    logging: process.env.NODE_ENV === 'development'
+});
 
 const initDB = async () => {
-    const query = `
-        CREATE TABLE IF NOT EXISTS applications (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            job_id VARCHAR(255),
-            candidate_id VARCHAR(255),
-            status VARCHAR(50), 
-            saga_state VARCHAR(50) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    `;
-    await pool.query(query);
+    await appDataSource.initialize();
     console.log("applications_db initialized");
 };
 
-module.exports = { pool, initDB };
+const getApplicationRepository = () => appDataSource.getRepository('Application');
+
+module.exports = { appDataSource, initDB, getApplicationRepository };

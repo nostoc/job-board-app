@@ -16,9 +16,8 @@ spec:
     spec:
       containers:
       - name: jobs-service
-        image: hashicorp/http-echo:latest
-        args:
-          - "-text=Hello from the Jobs Service!"
+        image: chamudithak/jobs-service:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 5678
 ---

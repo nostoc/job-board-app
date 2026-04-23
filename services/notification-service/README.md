@@ -5,6 +5,7 @@ Consumes RabbitMQ events and sends transactional emails via Resend. Persists eve
 ## Stack
 
 - **NestJS** — framework (hybrid HTTP + RabbitMQ microservice)
+- **TypeORM** — ORM for PostgreSQL with entity-based schema sync
 - **PostgreSQL** — notification log (status, payload, errors)
 - **RabbitMQ** — event consumer (manual ack, durable queue)
 - **Resend** — email delivery
@@ -28,6 +29,20 @@ Consumes RabbitMQ events and sends transactional emails via Resend. Persists eve
 # fill in RESEND_API_KEY + RESEND_FROM in .env
 docker-compose up
 ```
+
+## Database Configuration
+
+Set PostgreSQL environment variables in `.env`:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=notification_admin
+DB_PASSWORD=notification_password
+DB_NAME=notifications_db
+```
+
+On startup, the service initializes TypeORM and synchronizes the `notifications` table from entity metadata when `NODE_ENV` is not `production`.
 
 ## Publishing an Event from other services
 

@@ -1,12 +1,12 @@
 # ---- Build Stage ----
-FROM golang:1.21-alpine AS builder
+FROM golang:1.26.1-alpine AS builder
 
 WORKDIR /app
 
 # Install git for Go modules if needed
 RUN apk add --no-cache git
 
-# Copy go.mod and go.sum first for better caching
+# Copy go.mod first for better caching
 COPY go.mod ./
 RUN go mod download
 
@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build the Go binary
-RUN CGO_ENABLED=0 GOOS=linux go build -o user-service ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -o user-service ./cmd/main.go
 
 # ---- Final Stage ----
 FROM alpine:3.19
@@ -26,9 +26,6 @@ WORKDIR /app
 
 # Copy the binary from the builder
 COPY --from=builder /app/user-service .
-
-# Copy any required config files (e.g., .env)
-COPY .env .env
 
 USER appuser
 

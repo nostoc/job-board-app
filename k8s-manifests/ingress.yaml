@@ -5,11 +5,19 @@ metadata:
   namespace: default
   annotations:
     kubernetes.io/ingress.class: kong
+    konghq.com/plugins: global-rate-limit,request-logging
 spec:
   rules:
   - http:
       paths:
       - path: /api/v1/jobs
+        pathType: Prefix
+        backend:
+          service:
+            name: jobs-service
+            port:
+              number: 80
+      - path: /api/v2/jobs
         pathType: Prefix
         backend:
           service:
@@ -30,7 +38,7 @@ spec:
             name: payment-service
             port:
               number: 80
-      - path: /api/v1/applications
+      - path: /api/v1/application
         pathType: Prefix
         backend:
           service:

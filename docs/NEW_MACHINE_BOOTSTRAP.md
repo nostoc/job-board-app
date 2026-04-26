@@ -83,8 +83,9 @@ Create secrets (DB + Redis for jobs):
 
 ```powershell
 kubectl exec vault-0 -- sh -c 'vault kv put secret/jobs-service DATABASE_URL=postgresql://jobs_admin:jobs_password@postgres-jobs:5432/jobs_db REDIS_URL=redis://redis:6379'
+kubectl exec vault-0 -- sh -c 'vault kv put secret/user-service DATABASE_URL=postgresql://user_admin:user_password@postgres-user:5432/users_db'
 kubectl exec vault-0 -- sh -c 'vault kv put secret/payment-service DATABASE_URL=postgresql://payment_admin:payment_password@postgres-payment:5432/payment_db'
-kubectl exec vault-0 -- sh -c 'vault kv put secret/application-service DATABASE_URL=postgresql://app_admin:app_password@postgres-application:5432/application_db'
+kubectl exec vault-0 -- sh -c 'vault kv put secret/application-service DATABASE_URL=postgresql://app_admin:app_password@postgres-application:5432/application_db JOBS_SERVICE_URL=http://jobs-service PAYMENT_SERVICE_URL=http://payment-service'
 kubectl exec vault-0 -- sh -c 'vault kv put secret/notification-service DB_HOST=postgres-notifications DB_PORT=5432 DB_USER=notif_admin DB_PASSWORD=notif_password DB_NAME=notif_db'
 ```
 
@@ -92,6 +93,7 @@ Create policies:
 
 ```powershell
 kubectl exec vault-0 -- sh -c 'printf "path \"secret/data/jobs-service\" {\n  capabilities = [\"read\"]\n}\n" > /tmp/jobs-policy.hcl; vault policy write jobs-policy /tmp/jobs-policy.hcl'
+kubectl exec vault-0 -- sh -c 'printf "path \"secret/data/user-service\" {\n  capabilities = [\"read\"]\n}\n" > /tmp/user-policy.hcl; vault policy write user-policy /tmp/user-policy.hcl'
 kubectl exec vault-0 -- sh -c 'printf "path \"secret/data/payment-service\" {\n  capabilities = [\"read\"]\n}\n" > /tmp/payment-policy.hcl; vault policy write payment-policy /tmp/payment-policy.hcl'
 kubectl exec vault-0 -- sh -c 'printf "path \"secret/data/application-service\" {\n  capabilities = [\"read\"]\n}\n" > /tmp/application-policy.hcl; vault policy write application-policy /tmp/application-policy.hcl'
 kubectl exec vault-0 -- sh -c 'printf "path \"secret/data/notification-service\" {\n  capabilities = [\"read\"]\n}\n" > /tmp/notification-policy.hcl; vault policy write notification-policy /tmp/notification-policy.hcl'
@@ -101,6 +103,7 @@ Create Kubernetes auth roles:
 
 ```powershell
 kubectl exec vault-0 -- sh -c 'vault write auth/kubernetes/role/jobs-role bound_service_account_names=jobs-service-sa bound_service_account_namespaces=default policies=jobs-policy ttl=24h'
+kubectl exec vault-0 -- sh -c 'vault write auth/kubernetes/role/user-role bound_service_account_names=user-service-sa bound_service_account_namespaces=default policies=user-policy ttl=24h'
 kubectl exec vault-0 -- sh -c 'vault write auth/kubernetes/role/payment-role bound_service_account_names=payment-service-sa bound_service_account_namespaces=default policies=payment-policy ttl=24h'
 kubectl exec vault-0 -- sh -c 'vault write auth/kubernetes/role/application-role bound_service_account_names=application-service-sa bound_service_account_namespaces=default policies=application-policy ttl=24h'
 kubectl exec vault-0 -- sh -c 'vault write auth/kubernetes/role/notification-role bound_service_account_names=notification-service-sa bound_service_account_namespaces=default policies=notification-policy ttl=24h'
@@ -116,10 +119,12 @@ From repo root:
 kubectl apply -f k8s-manifests/redis-rabbitmq.yaml
 
 kubectl apply -f k8s-manifests/jobs-service-sa.yaml
+kubectl apply -f k8s-manifests/user-service-sa.yaml
 kubectl apply -f k8s-manifests/payment-service-sa.yaml
 kubectl apply -f k8s-manifests/application-service-sa.yaml
 kubectl apply -f k8s-manifests/notification-service-sa.yaml
 
+kubectl apply -f k8s-manifests/postgres-user.yaml
 kubectl apply -f k8s-manifests/postgres-jobs.yaml
 kubectl apply -f k8s-manifests/postgres-payment.yaml
 kubectl apply -f k8s-manifests/postgres-application.yaml
@@ -164,6 +169,9 @@ Check Vault injected files:
 ```powershell
 $jobsPod = kubectl get pod -l app=jobs-service -o jsonpath="{.items[0].metadata.name}"
 kubectl exec $jobsPod -c vault-agent -- sh -c "cat /vault/secrets/database && echo '---' && cat /vault/secrets/redis"
+
+$userPod = kubectl get pod -l app=user-service -o jsonpath="{.items[0].metadata.name}"
+kubectl exec $userPod -c vault-agent -- sh -c "cat /vault/secrets/database"
 
 $payPod = kubectl get pod -l app=payment-service -o jsonpath="{.items[0].metadata.name}"
 kubectl exec $payPod -c vault-agent -- sh -c "cat /vault/secrets/database"

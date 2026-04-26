@@ -12,6 +12,8 @@ spec:
     metadata:
       labels:
         app: postgres-jobs
+      annotations:
+        sidecar.istio.io/inject: "true"
     spec:
       containers:
       - name: postgres

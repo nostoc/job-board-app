@@ -1,0 +1,19 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-rate-limit
+  namespace: default
+plugin: rate-limiting
+config:
+  minute: 100
+  limit_by: ip
+  policy: local
+---
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: request-logging
+  namespace: default
+plugin: file-log
+config:
+  path: /dev/stdout

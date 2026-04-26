@@ -13,7 +13,17 @@ spec:
     metadata:
       labels:
         app: user-service
+      annotations:
+        traffic.sidecar.istio.io/excludeOutboundPorts: "8200"
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "user-role"
+        vault.hashicorp.com/agent-inject-secret-database: "secret/data/user-service"
+        vault.hashicorp.com/agent-inject-template-database: |
+          {{- with secret "secret/data/user-service" -}}
+          {{ .Data.data.DATABASE_URL }}
+          {{- end }}
     spec:
+      serviceAccountName: user-service-sa
       containers:
       - name: user-service
         image: hashicorp/http-echo:latest

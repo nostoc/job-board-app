@@ -68,9 +68,15 @@ $env:VAULT_TOKEN="<YOUR_ROOT_TOKEN>"
 Enable engines/auth (idempotent in practice; ignore "already enabled" messages):
 
 ```powershell
+kubectl exec vault-0 -- vault login <your key>
 kubectl exec vault-0 -- sh -c 'vault secrets enable -path=secret kv-v2'
 kubectl exec vault-0 -- sh -c 'vault auth enable kubernetes'
-kubectl exec vault-0 -- sh -c 'vault write auth/kubernetes/config kubernetes_host="https://kubernetes.default.svc" token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'
+kubectl exec vault-0 -- sh -c '
+vault write auth/kubernetes/config \
+  kubernetes_host="https://kubernetes.default.svc" \
+  token_reviewer_jwt=@/var/run/secrets/kubernetes.io/serviceaccount/token \
+  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+'
 ```
 
 Create secrets (DB + Redis for jobs):
@@ -137,6 +143,9 @@ kubectl rollout restart deployment/notification-service-deployment
 ```
 
 ---
+
+## 5.1) Add Secrets to vault
+
 
 ## 5) Verify rollout and secret injection
 

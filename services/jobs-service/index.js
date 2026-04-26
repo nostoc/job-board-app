@@ -53,6 +53,94 @@ const connectRedis = async () => {
     console.log('Redis connected for jobs search caching');
 };
 
+const parsePositiveInt = (value, fallback) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parseSalaryRange = (query) => {
+    const range = (query.salary_range || '').toString().trim();
+    if (!range) return null;
+
+    const parts = range.split('-').map((part) => part.trim());
+    if (parts.length !== 2) return null;
+
+    const min = Number(parts[0]);
+    const max = Number(parts[1]);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+    if (min > max) return null;
+
+    return { min, max };
+};
+
+// v1: Basic listing for backward compatibility
+app.get('/api/v1/jobs', async (_req, res) => {
+    try {
+        const jobRepository = getJobRepository();
+        const jobs = await jobRepository.find({
+            where: { status: 'PUBLISHED' },
+            order: { created_at: 'DESC' }
+        });
+        return res.status(200).json(jobs);
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// v2: Listing with salary_range filter + pagination metadata
+app.get('/api/v2/jobs', async (req, res) => {
+    try {
+        const page = parsePositiveInt(req.query.page, 1);
+        const limit = Math.min(parsePositiveInt(req.query.limit, 10), 100);
+        const salaryRange = parseSalaryRange(req.query);
+
+        if (req.query.salary_range && !salaryRange) {
+            return res.status(400).json({
+                error: 'Invalid salary_range. Expected format: min-max (e.g. 50000-120000).'
+            });
+        }
+
+        const jobRepository = getJobRepository();
+        let qb = jobRepository
+            .createQueryBuilder('job')
+            .where('job.status = :status', { status: 'PUBLISHED' });
+
+        if (salaryRange) {
+            qb = qb.andWhere(
+                'job.salary_min <= :maxSalary AND job.salary_max >= :minSalary',
+                { minSalary: salaryRange.min, maxSalary: salaryRange.max }
+            );
+        }
+
+        const total = await qb.getCount();
+        const totalPages = Math.max(Math.ceil(total / limit), 1);
+        const offset = (page - 1) * limit;
+
+        const jobs = await qb
+            .orderBy('job.created_at', 'DESC')
+            .skip(offset)
+            .take(limit)
+            .getMany();
+
+        return res.status(200).json({
+            data: jobs,
+            meta: {
+                page,
+                limit,
+                total,
+                total_pages: totalPages,
+                has_next: page < totalPages,
+                has_prev: page > 1
+            },
+            filters: {
+                salary_range: salaryRange ? `${salaryRange.min}-${salaryRange.max}` : null
+            }
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 // 1. Create Draft Job
 app.post('/api/v1/jobs', async (req, res) => {
     const { employer_id, title, description, salary_min, salary_max } = req.body;
